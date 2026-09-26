@@ -52,6 +52,31 @@ const searchStations = async (params) => {
   return scoredStations.sort((a, b) => b.score - a.score);
 };
 
+const getStations = async () => {
+  const result = await pool.query(
+    `SELECT id, name, latitude, longitude, power, available_slots,
+            total_slots, wait_time, trust_score
+     FROM stations
+     ORDER BY id`,
+  );
+
+  return result.rows;
+};
+
+const getStationById = async (id) => {
+  const result = await pool.query(
+    `SELECT id, name, latitude, longitude, power, available_slots,
+            total_slots, wait_time, trust_score
+     FROM stations
+     WHERE id = $1`,
+    [id],
+  );
+
+  return result.rows[0];
+};
+
 module.exports = {
   searchStations,
+  getStations,
+  getStationById
 };
