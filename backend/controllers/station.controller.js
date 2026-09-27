@@ -2,38 +2,27 @@ const { searchStations, getStations, getStationById } = require("../services/sta
 
 const searchStationsController = async (req, res) => {
   try {
-    const { latitude, longitude, battery, connector } = req.query;
+    const { latitude, longitude, battery, vehicleId } = req.query;
 
-    if (
-      latitude === undefined ||
-      longitude === undefined ||
-      battery === undefined ||
-      !connector
-    ) {
-      return res.status(400).json({
-        error: "location, battery and connector are required",
-      });
+    if (latitude === undefined) {
+      return res.status(400).json({ field: "latitude", error: "Latitude is required to search nearby stations" });
+    }
+    if (longitude === undefined) {
+      return res.status(400).json({ field: "longitude", error: "Longitude is required to search nearby stations" });
+    }
+    if (battery === undefined) {
+      return res.status(400).json({ field: "battery", error: "Battery level is required to find compatible stations" });
     }
 
     const stations = await searchStations({
       latitude,
       longitude,
       battery,
-      connector,
+      vehicleId,
     });
 
-    res.json({
-      filters: {
-        latitude,
-        longitude,
-        battery,
-        connector,
-      },
-      stations,
-    });
+    res.json(stations);
   } catch (error) {
-    console.error("Search stations error:", error);
-
     res.status(500).json({
       error: "Failed to search charging stations",
     });
@@ -45,7 +34,6 @@ const getStationsController = async (req, res) => {
     const stations = await getStations();
     res.json(stations);
   } catch (error) {
-    console.error("Get stations error:", error);
     res.status(500).json({
       error: "Failed to fetch charging stations",
     });
@@ -66,8 +54,6 @@ const getStationByIdController = async (req, res) => {
 
     res.json(station);
   } catch (error) {
-    console.error("Get station error:", error);
-
     res.status(500).json({
       error: "Failed to fetch charging station",
     });
@@ -77,5 +63,5 @@ const getStationByIdController = async (req, res) => {
 module.exports = {
   searchStationsController,
   getStationsController,
-  getStationByIdController
+  getStationByIdController,
 };

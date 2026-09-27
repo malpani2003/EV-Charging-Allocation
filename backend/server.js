@@ -4,6 +4,7 @@ const pool = require("./db");
 const app = express();
 const stationRoutes = require("./routes/station.routes");
 const allocationRoutes = require("./routes/allocation.routes");
+const startAllocationExpiryJob = require("./jobs/allocationExpiry.job");
 
 const PORT = 3000;
 
@@ -35,25 +36,15 @@ app.get("/", (req, res) => {
 
 app.post("/api/vehicles", async (req, res) => {
   try {
-    const { userId, registrationNumber, brand, model, batteryCapacity } =
-      req.body;
+    const { userId, registrationNumber, brand, model, batteryCapacity, consumptionPerKm, connectorType } = req.body;
 
-    if (
-      !userId ||
-      !registrationNumber ||
-      !brand ||
-      !model ||
-      !batteryCapacity
-    ) {
+    if (!userId || !registrationNumber || !brand || !model || !batteryCapacity || !consumptionPerKm || !connectorType) {
       return res.status(400).json({
-        error:
-          "userId, registrationNumber, brand, model and batteryCapacity are required",
+        error: "userId, registrationNumber, brand, model, batteryCapacity, consumptionPerKm and connectorType are required",
       });
     }
 
-    const userResult = await pool.query("SELECT id FROM users WHERE id = $1", [
-      userId,
-    ]);
+    const userResult = await pool.query("SELECT id FROM users WHERE id = $1", [userId]);
 
     if (userResult.rows.length === 0) {
       return res.status(404).json({
@@ -62,8 +53,8 @@ app.post("/api/vehicles", async (req, res) => {
     }
 
     const result = await pool.query(
-      "INSERT INTO vehicles (user_id, registration_number, brand, model, battery_capacity) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-      [userId, registrationNumber, brand, model, batteryCapacity],
+      "INSERT INTO vehicles (user_id, registration_number, brand, model, battery_capacity, consumption_per_km, connector_type) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *",
+      [userId, registrationNumber, brand, model, batteryCapacity, consumptionPerKm, connectorType],
     );
 
     res.status(201).json({
@@ -106,4 +97,5 @@ app.get("/api/users/:userId/vehicles", async (req, res) => {
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
+  startAllocationExpiryJob();
 });
