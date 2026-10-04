@@ -9,6 +9,8 @@ import {
   View,
 } from "react-native";
 
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 import ChargingStationCard from "@/components/charging-station-card";
 import { Colors } from "@/constants/colors";
 import { useStations } from "@/hooks/useStations";
@@ -31,6 +33,8 @@ type Station = {
 };
 
 export default function ResultsScreen() {
+  const insets = useSafeAreaInsets();
+
   const [sortBy, setSortBy] = useState<SortOption>("score");
 
   const { latitude, longitude, battery, connector } = useLocalSearchParams<{
@@ -104,7 +108,7 @@ export default function ResultsScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top + 24 }]}>
       {/* Header */}
       <Text style={styles.title}>Results Near You</Text>
 

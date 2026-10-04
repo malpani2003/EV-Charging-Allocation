@@ -1,13 +1,25 @@
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
-export const getStations = async () => {
-  const response = await fetch(`${API_URL}/api/stations`);
+const apiRequest = async <T = any>(endpoint: string, options?: RequestInit): Promise<T> => {
+  const response = await fetch(`${API_URL}${endpoint}`, {
+    headers: {
+      "Content-Type": "application/json",
+      ...options?.headers,
+    },
+    ...options,
+  });
+
+  const data = await response.json();
 
   if (!response.ok) {
-    throw new Error("Failed to fetch stations");
+    throw new Error(data.error || `Request failed with status ${response.status}`);
   }
 
-  return response.json();
+  return data;
+};
+
+export const getStations = async () => {
+  return apiRequest("/api/stations");
 };
 
 export const searchStations = async ({
@@ -21,11 +33,8 @@ export const searchStations = async ({
   battery: number;
   connector: string;
 }) => {
-  const response = await fetch(`${API_URL}/api/stations/search`, {
+  return apiRequest("/api/stations/search", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
     body: JSON.stringify({
       latitude,
       longitude,
@@ -33,40 +42,56 @@ export const searchStations = async ({
       connector,
     }),
   });
-
-  const responseText = await response.text();
-  if (!response.ok) {
-    throw new Error(`Search API failed: ${response.status} ${responseText}`);
-  }
-
-  return JSON.parse(responseText);
 };
 
 export const getStationById = async (id: string) => {
-  const response = await fetch(`${API_URL}/api/stations/${id}`);
-
-  if (!response.ok) {
-    throw new Error("Failed to fetch station");
-  }
-
-  return response.json();
+  return apiRequest(`/api/stations/${id}`);
 };
 
-export const allocateStation = async (id: string) => {
-  const response = await fetch(`${API_URL}/api/stations/${id}/allocate`, {
+export const allocateStation = async ({ stationId, userId, vehicleId }: { stationId: number; userId: number; vehicleId: number }) => {
+  return apiRequest("/api/allocations", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    body: JSON.stringify({
+      stationId,
+      userId,
+      vehicleId,
+    }),
   });
+};
 
-  const data = await response.json();
+export const startCharging = async ({ allocationId, initialBattery }: { allocationId: string; initialBattery: number }) => {
+  return apiRequest("/api/allocations/start", {
+    method: "POST",
+    body: JSON.stringify({
+      allocationId,
+      initialBattery,
+    }),
+  });
+};
 
-  if (!response.ok) {
-    throw new Error(data.error || "Failed to allocate charging slot");
-  }
+export const completeCharging = async ({ allocationId, finalBattery }: { allocationId: string; finalBattery: number }) => {
+  return apiRequest("/api/allocations/complete", {
+    method: "POST",
+    body: JSON.stringify({
+      allocationId,
+      finalBattery,
+    }),
+  });
+};
 
-  return data;
+export const getActiveAllocation = async ({ userId, stationId }: { userId: number; stationId: number }) => {
+  const data = await apiRequest<{ allocation: unknown | null }>(`/api/allocations/active?userId=${userId}&stationId=${stationId}`);
+
+  return data.allocation;
+};
+
+export const cancelAllocation = async ({ allocationId }: { allocationId: string }) => {
+  return apiRequest("/api/allocations/cancel", {
+    method: "POST",
+    body: JSON.stringify({
+      allocationId,
+    }),
+  });
 };
 
 export const createVehicle = async ({
@@ -82,11 +107,8 @@ export const createVehicle = async ({
   model: string;
   batteryCapacity: number;
 }) => {
-  const response = await fetch(`${API_URL}/api/vehicles`, {
+  return apiRequest("/api/vehicles", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
     body: JSON.stringify({
       userId,
       registrationNumber,
@@ -95,24 +117,12 @@ export const createVehicle = async ({
       batteryCapacity,
     }),
   });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.error || "Failed to add vehicle");
-  }
-
-  return data;
 };
 
 export const getUserVehicles = async (userId: number) => {
-  const response = await fetch(`${API_URL}/api/users/${userId}/vehicles`);
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.error || "Failed to fetch vehicles");
-  }
+  const data = await apiRequest<{
+    vehicles: unknown[];
+  }>(`/api/users/${userId}/vehicles`);
 
   return data.vehicles;
 };

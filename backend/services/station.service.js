@@ -19,6 +19,16 @@ const searchStations = async (params) => {
   const safetyReserve = 10;
   const drivingFactor = 1.1;
   const targetBattery = 100;
+  // Below this battery level, treating range as a strict driving-distance limit
+  // leaves a near-empty vehicle with zero reachable stations. A minimum search
+  // radius guarantees the nearest charger(s) still show up for limp-mode driving.
+  const minSearchRadiusKm = 3;
+  // Candidate pool is capped and ordered by raw distance (cheap, index-backed),
+  // then re-ranked by the weighted score below; this must stay well above
+  // maxResults so a nearby-but-lower-scoring station can't crowd out a
+  // farther-but-better one before scoring ever sees it.
+  const candidatePoolLimit = 100;
+  const maxResults = 20;
 
   const usableBattery = Math.max(0, Number(battery) - safetyReserve);
 
@@ -27,6 +37,8 @@ const searchStations = async (params) => {
   const effectiveConsumption = Number(vehicle.consumption_per_km) * drivingFactor;
 
   const estimatedRange = remainingEnergy / effectiveConsumption;
+
+  const searchRadiusKm = Math.max(estimatedRange, minSearchRadiusKm);
 
   const connectorType = vehicle.connector_type;
 
@@ -49,8 +61,9 @@ const searchStations = async (params) => {
        AND s.available_slots > 0
        AND ST_DWithin(s.location, sp.point, $4::double precision * 1000)
 
-     ORDER BY s.location <-> sp.point`,
-    [Number(latitude), Number(longitude), connectorType, estimatedRange],
+     ORDER BY s.location <-> sp.point
+     LIMIT $5`,
+    [Number(latitude), Number(longitude), connectorType, searchRadiusKm, candidatePoolLimit],
   );
 
   const reachableStations = result.rows.map((station) => ({
@@ -59,7 +72,7 @@ const searchStations = async (params) => {
   }));
 
   const scoredStations = reachableStations.map((station) => {
-    const distanceScore = Math.max(0, 100 - (station.distance / estimatedRange) * 100);
+    const distanceScore = Math.max(0, 100 - (station.distance / searchRadiusKm) * 100);
 
     const waitScore = Math.max(0, 100 - (station.wait_time / 30) * 100);
 
@@ -115,9 +128,10 @@ const searchStations = async (params) => {
       battery: Number(battery),
       remainingEnergy: Number(remainingEnergy.toFixed(2)),
       estimatedRange: Number(estimatedRange.toFixed(2)),
+      lowRangeWarning: estimatedRange < minSearchRadiusKm,
     },
     recommendedStation,
-    stations: sortedStations,
+    stations: sortedStations.slice(0, maxResults),
   };
 };
 

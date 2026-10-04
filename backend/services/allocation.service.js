@@ -309,6 +309,32 @@ const cancelAllocation = async (params) => {
   }
 };
 
+const getActiveAllocation = async (params) => {
+  const { userId, stationId } = params;
+
+  const result = await pool.query(
+    `SELECT
+       id,
+       allocation_id,
+       station_id,
+       user_id,
+       vehicle_id,
+       status,
+       expires_at,
+       started_at,
+       initial_battery
+     FROM allocations
+     WHERE user_id = $1
+       AND station_id = $2
+       AND status IN ('ALLOCATED', 'CHARGING')
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [userId, stationId],
+  );
+
+  return result.rows[0] || null;
+};
+
 const expireAllocations = async () => {
   const client = await pool.connect();
 
@@ -365,5 +391,6 @@ module.exports = {
   startCharging,
   completeCharging,
   cancelAllocation,
+  getActiveAllocation,
   expireAllocations,
 };

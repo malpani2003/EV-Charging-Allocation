@@ -4,6 +4,7 @@ const {
   startChargingController,
   completetChargingController,
   cancelAllocationController,
+  getActiveAllocationController,
   expireAllocationsController,
 } = require("../controllers/allocation.controller");
 
@@ -13,6 +14,7 @@ router.post("/", allocateStationController);
 router.post("/start", startChargingController);
 router.post("/complete", completetChargingController);
 router.post("/cancel", cancelAllocationController);
+router.get("/active", getActiveAllocationController);
 router.post("/expire", expireAllocationsController);
 
 module.exports = router;

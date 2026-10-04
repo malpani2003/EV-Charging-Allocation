@@ -1,4 +1,11 @@
-const { allocateStation, startCharging, completeCharging, cancelAllocation, expireAllocations } = require("../services/allocation.service");
+const {
+  allocateStation,
+  startCharging,
+  completeCharging,
+  cancelAllocation,
+  getActiveAllocation,
+  expireAllocations,
+} = require("../services/allocation.service");
 
 const allocateStationController = async (req, res) => {
   try {
@@ -18,6 +25,7 @@ const allocateStationController = async (req, res) => {
 
     res.status(201).json(allocation);
   } catch (error) {
+    console.error("Allocation error:", error);
     if (error.message === "STATION_NOT_FOUND") {
       return res.status(404).json({
         error: "Charging station not found",
@@ -33,6 +41,12 @@ const allocateStationController = async (req, res) => {
     if (error.code === "23503") {
       return res.status(400).json({
         error: "Invalid userId or vehicleId",
+      });
+    }
+
+    if (error.message === "STATION_DOES_NOT_SUPPORT_CONNECTOR") {
+      return res.status(400).json({
+        error: "This station does not support your vehicle connector type",
       });
     }
 
@@ -167,6 +181,26 @@ const cancelAllocationController = async (req, res) => {
   }
 };
 
+const getActiveAllocationController = async (req, res) => {
+  try {
+    const { userId, stationId } = req.query;
+
+    if (!userId || !stationId) {
+      return res.status(400).json({
+        error: "userId and stationId are required",
+      });
+    }
+
+    const allocation = await getActiveAllocation({ userId, stationId });
+
+    res.status(200).json({ allocation });
+  } catch (error) {
+    res.status(500).json({
+      error: "Failed to fetch active allocation",
+    });
+  }
+};
+
 const expireAllocationsController = async (req, res) => {
   try {
     const expiredAllocationIds = await expireAllocations();
@@ -188,5 +222,6 @@ module.exports = {
   startChargingController,
   completetChargingController,
   cancelAllocationController,
+  getActiveAllocationController,
   expireAllocationsController,
 };

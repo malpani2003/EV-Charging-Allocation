@@ -1,44 +1,49 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
   StyleSheet,
   Text,
   View,
-} from 'react-native';
-import Slider from '@react-native-community/slider';
-import { router } from 'expo-router';
-import * as Location from 'expo-location';
+} from "react-native";
+import Slider from "@react-native-community/slider";
+import { router } from "expo-router";
+import * as Location from "expo-location";
+import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Colors } from '@/constants/colors';
+import { Colors } from "@/constants/colors";
 
 export default function ExploreScreen() {
-  const [battery, setBattery] = useState(18);
-  const [connector, setConnector] = useState('CCS2');
+  const insets = useSafeAreaInsets();
 
-  const [validationError, setValidationError] = useState('');
+  const [battery, setBattery] = useState(18);
+  const [connector, setConnector] = useState("CCS2");
+
+  const [validationError, setValidationError] = useState("");
 
   const [location, setLocation] =
     useState<Location.LocationObject | null>(null);
 
-  const [locationLoading, setLocationLoading] =
-    useState(false);
-
-  const [locationError, setLocationError] =
-    useState('');
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationError, setLocationError] = useState("");
+  const [locationName, setLocationName] = useState("");
 
   const getCurrentLocation = async () => {
     try {
       setLocationLoading(true);
-      setLocationError('');
+      setLocationError("");
+      setValidationError("");
+      setLocationName("");
 
       const { status } =
         await Location.requestForegroundPermissionsAsync();
 
-      if (status !== 'granted') {
+      if (status !== "granted") {
         setLocationError(
-          'Location permission is required to find nearby charging stations.'
+          "Location permission is required to find nearby charging stations.",
         );
+        setLocation(null);
         return;
       }
 
@@ -48,10 +53,31 @@ export default function ExploreScreen() {
         });
 
       setLocation(currentLocation);
+
+      try {
+        const [address] = await Location.reverseGeocodeAsync({
+          latitude: currentLocation.coords.latitude,
+          longitude: currentLocation.coords.longitude,
+        });
+
+        if (address) {
+          const locality = address.district || address.subregion;
+          const city = address.city || address.region;
+
+          const parts = [...new Set(
+            [locality, city].filter(Boolean)
+          )];
+
+          setLocationName(
+            parts.length > 0 ? parts.join(", ") : "Current Location"
+          );
+        }
+      } catch {
+        setLocationName("");
+      }
     } catch {
-      setLocationError(
-        'Unable to get your current location.'
-      );
+      setLocation(null);
+      setLocationError("Unable to get your current location.");
     } finally {
       setLocationLoading(false);
     }
@@ -62,147 +88,317 @@ export default function ExploreScreen() {
   }, []);
 
   const handleSearch = () => {
-    setValidationError('');
+    setValidationError("");
 
     if (battery < 0 || battery > 100) {
       setValidationError(
-        'Battery level must be between 0 and 100'
+        "Battery level must be between 0 and 100.",
       );
       return;
     }
 
     if (!location) {
       setValidationError(
-        'Please allow location access before searching.'
+        "Please allow location access before searching.",
       );
       return;
     }
 
-    const latitude = location.coords.latitude;
-    const longitude = location.coords.longitude;
-
     router.push({
-      pathname: '/results',
+      pathname: "/results",
       params: {
-        latitude: String(latitude),
-        longitude: String(longitude),
+        latitude: String(location.coords.latitude),
+        longitude: String(location.coords.longitude),
         battery: String(battery),
         connector,
       },
     });
   };
 
+  const getBatteryLabel = () => {
+    if (battery <= 20) return "Low";
+    if (battery <= 50) return "Moderate";
+    if (battery <= 80) return "Good";
+    return "High";
+  };
+
+  const getBatteryColor = () => {
+    if (battery <= 20) return Colors.error;
+    if (battery <= 50) return "#F59E0B";
+    return Colors.primary;
+  };
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>
-        Find Charging Stations
-      </Text>
+    <View style={[styles.container, { paddingTop: insets.top + 24 }]}>
+      {/* Header */}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.eyebrow}>EV CHARGE FINDER</Text>
+
+          <Text style={styles.title}>
+            Find a charging station
+          </Text>
+
+          <Text style={styles.subtitle}>
+            We'll find stations that match your vehicle
+            and current location.
+          </Text>
+        </View>
+      </View>
 
       {/* Location */}
-      <Text style={styles.label}>
-        📍 Current Location
-      </Text>
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionTitleRow}>
+            <View style={styles.sectionIcon}>
+              <Ionicons
+                name="location"
+                size={16}
+                color={Colors.primary}
+              />
+            </View>
 
-      <View style={styles.locationContainer}>
-        {locationLoading ? (
-          <View style={styles.locationRow}>
-            <ActivityIndicator color={Colors.primary} />
-
-            <Text style={styles.locationText}>
-              Getting your location...
+            <Text style={styles.sectionTitle}>
+              Your location
             </Text>
           </View>
-        ) : location ? (
-          <View>
-            <Text style={styles.locationSuccess}>
-              📍 Location detected
-            </Text>
 
-            <Text style={styles.coordinates}>
-              {location.coords.latitude.toFixed(6)},{' '}
-              {location.coords.longitude.toFixed(6)}
-            </Text>
-          </View>
-        ) : (
-          <Text style={styles.locationErrorText}>
-            {locationError || 'Location unavailable'}
+          <Text style={styles.sectionHint}>
+            Required
           </Text>
-        )}
+        </View>
 
-        {!locationLoading && (
+        <View style={styles.locationCard}>
+          <View style={styles.locationMain}>
+            <View
+              style={[
+                styles.locationStatusIcon,
+                location && styles.locationStatusIconSuccess,
+              ]}
+            >
+              <Ionicons
+                name={
+                  location
+                    ? "checkmark"
+                    : locationLoading
+                      ? "locate"
+                      : "location-outline"
+                }
+                size={21}
+                color={
+                  location
+                    ? Colors.primary
+                    : Colors.textSecondary
+                }
+              />
+            </View>
+
+            <View style={styles.locationContent}>
+              {locationLoading ? (
+                <>
+                  <Text style={styles.locationTitle}>
+                    Detecting location
+                  </Text>
+
+                  <Text style={styles.locationSubtitle}>
+                    Getting your current position...
+                  </Text>
+                </>
+              ) : location ? (
+                <>
+                  <Text style={styles.locationTitle}>
+                    Location detected
+                  </Text>
+
+                  <Text style={styles.locationSubtitle} numberOfLines={1}>
+                    {locationName ||
+                      `${location.coords.latitude.toFixed(5)}, ${location.coords.longitude.toFixed(5)}`}
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.locationTitle}>
+                    Location unavailable
+                  </Text>
+
+                  <Text style={styles.locationSubtitle}>
+                    Enable location to find nearby stations.
+                  </Text>
+                </>
+              )}
+            </View>
+          </View>
+
           <Pressable
             style={styles.refreshButton}
             onPress={getCurrentLocation}
+            disabled={locationLoading}
           >
-            <Text style={styles.refreshButtonText}>
-              ↻
-            </Text>
+            {locationLoading ? (
+              <ActivityIndicator
+                size="small"
+                color={Colors.primary}
+              />
+            ) : (
+              <Ionicons
+                name="refresh"
+                size={18}
+                color={Colors.primary}
+              />
+            )}
           </Pressable>
-        )}
+        </View>
       </View>
 
       {/* Battery */}
-      <View style={styles.batteryHeader}>
-        <Text style={styles.label}>
-          🔋 Battery Level
-        </Text>
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionTitleRow}>
+            <View style={styles.sectionIcon}>
+              <Ionicons
+                name="battery-half"
+                size={16}
+                color={Colors.primary}
+              />
+            </View>
 
-        <Text style={styles.batteryValue}>
-          {battery}%
-        </Text>
-      </View>
+            <Text style={styles.sectionTitle}>
+              Battery level
+            </Text>
+          </View>
 
-      <Slider
-        style={styles.slider}
-        minimumValue={0}
-        maximumValue={100}
-        step={1}
-        value={battery}
-        onValueChange={setBattery}
-        minimumTrackTintColor={Colors.primary}
-        maximumTrackTintColor={Colors.surfaceElevated}
-        thumbTintColor={Colors.primary}
-      />
-
-      {/* Connector */}
-      <Text style={styles.label}>
-        🔌 Connector Type
-      </Text>
-
-      <View style={styles.connectorContainer}>
-        {(['CCS2', 'Type2', 'Bharat DC'] as const).map((type) => (
-          <Pressable
-            key={type}
-            style={[
-              styles.connectorButton,
-              connector === type && styles.selectedConnector,
-            ]}
-            onPress={() => setConnector(type)}
-          >
+          <View style={styles.batteryBadge}>
             <Text
               style={[
-                styles.connectorText,
-                connector === type && styles.selectedText,
+                styles.batteryBadgeText,
+                { color: getBatteryColor() },
               ]}
             >
-              {type}
+              {getBatteryLabel()}
             </Text>
-          </Pressable>
-        ))}
+          </View>
+        </View>
+
+        <View style={styles.batteryCard}>
+          <View style={styles.batteryValueRow}>
+            <Text style={styles.batteryValue}>
+              {battery}%
+            </Text>
+
+            <Text style={styles.batteryDescription}>
+              Current battery
+            </Text>
+          </View>
+
+          <Slider
+            style={styles.slider}
+            minimumValue={0}
+            maximumValue={100}
+            step={1}
+            value={battery}
+            onValueChange={setBattery}
+            minimumTrackTintColor={getBatteryColor()}
+            maximumTrackTintColor={Colors.surfaceElevated}
+            thumbTintColor={getBatteryColor()}
+          />
+
+          <View style={styles.sliderLabels}>
+            <Text style={styles.sliderLabel}>0%</Text>
+            <Text style={styles.sliderLabel}>50%</Text>
+            <Text style={styles.sliderLabel}>100%</Text>
+          </View>
+        </View>
       </View>
 
-      {/* Validation Error */}
-      {validationError && (
-        <Text style={styles.errorText}>
-          {validationError}
-        </Text>
-      )}
+      {/* Connector */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionTitleRow}>
+            <View style={styles.sectionIcon}>
+              <Ionicons
+                name="flash"
+                size={16}
+                color={Colors.primary}
+              />
+            </View>
 
-      {/* Location Error */}
-      {locationError && !validationError && (
-        <Text style={styles.errorText}>
-          {locationError}
-        </Text>
+            <Text style={styles.sectionTitle}>
+              Connector type
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.connectorContainer}>
+          {(["CCS2", "Type2", "Bharat DC"] as const).map(
+            (type) => {
+              const selected = connector === type;
+
+              return (
+                <Pressable
+                  key={type}
+                  style={[
+                    styles.connectorButton,
+                    selected &&
+                      styles.selectedConnector,
+                  ]}
+                  onPress={() => setConnector(type)}
+                >
+                  <View
+                    style={[
+                      styles.connectorIcon,
+                      selected &&
+                        styles.selectedConnectorIcon,
+                    ]}
+                  >
+                    <Ionicons
+                      name="flash"
+                      size={15}
+                      color={
+                        selected
+                          ? Colors.background
+                          : Colors.textSecondary
+                      }
+                    />
+                  </View>
+
+                  <Text
+                    style={[
+                      styles.connectorText,
+                      selected && styles.selectedText,
+                    ]}
+                  >
+                    {type}
+                  </Text>
+
+                  {selected && (
+                    <View style={styles.checkIcon}>
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={18}
+                        color={Colors.background}
+                      />
+                    </View>
+                  )}
+                </Pressable>
+              );
+            },
+          )}
+        </View>
+      </View>
+
+      {/* Errors */}
+      {(validationError || locationError) && (
+        <View style={styles.errorContainer}>
+          <Ionicons
+            name="alert-circle-outline"
+            size={18}
+            color={Colors.error}
+          />
+
+          <Text style={styles.errorText}>
+            {validationError || locationError}
+          </Text>
+        </View>
       )}
 
       {/* Search */}
@@ -216,8 +412,16 @@ export default function ExploreScreen() {
         onPress={handleSearch}
       >
         <Text style={styles.searchButtonText}>
-          FIND STATIONS →
+          FIND STATIONS
         </Text>
+
+        <View style={styles.searchButtonIcon}>
+          <Ionicons
+            name="arrow-forward"
+            size={18}
+            color={Colors.background}
+          />
+        </View>
       </Pressable>
     </View>
   );
@@ -226,111 +430,205 @@ export default function ExploreScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 24,
+    paddingHorizontal: 20,
+    paddingTop: 24,
     backgroundColor: Colors.background,
   },
 
+  header: {
+    marginBottom: 24,
+  },
+
+  eyebrow: {
+    marginBottom: 6,
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1.5,
+    color: Colors.primary,
+  },
+
   title: {
-    fontSize: 28,
-    fontWeight: '800',
-    marginBottom: 32,
+    fontSize: 27,
+    fontWeight: "800",
     color: Colors.textPrimary,
   },
 
-  label: {
-    fontSize: 15,
-    fontWeight: '700',
-    marginTop: 20,
-    marginBottom: 8,
+  subtitle: {
+    marginTop: 7,
+    fontSize: 13,
+    lineHeight: 19,
     color: Colors.textSecondary,
   },
 
-  locationContainer: {
-    minHeight: 60,
-    padding: 14,
+  section: {
+    marginBottom: 22,
+  },
+
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+
+  sectionTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+
+  sectionIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.surfaceElevated,
-    borderRadius: 12,
-    backgroundColor: Colors.surface,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
   },
 
-  locationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-
-  locationText: {
-    fontSize: 15,
-    color: Colors.textSecondary,
-  },
-
-  locationSuccess: {
-    fontSize: 15,
-    fontWeight: '700',
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: "800",
     color: Colors.textPrimary,
   },
 
-  coordinates: {
-    marginTop: 4,
-    fontSize: 13,
+  sectionHint: {
+    fontSize: 11,
+    fontWeight: "600",
     color: Colors.textSecondary,
   },
 
-  locationErrorText: {
-    color: Colors.error,
-    fontSize: 14,
+  locationCard: {
+    minHeight: 76,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.surfaceElevated,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  locationMain: {
     flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  locationStatusIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.background,
+  },
+
+  locationStatusIconSuccess: {
+    borderWidth: 1,
+    borderColor: Colors.primary,
+  },
+
+  locationContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+
+  locationTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: Colors.textPrimary,
+  },
+
+  locationSubtitle: {
+    marginTop: 4,
+    fontSize: 11,
+    color: Colors.textSecondary,
   },
 
   refreshButton: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.surfaceElevated,
-    alignItems: 'center',
-    justifyContent: 'center',
+    marginLeft: 10,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.surfaceElevated,
   },
 
-  refreshButtonText: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: Colors.textPrimary,
+  batteryCard: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
+    borderRadius: 16,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.surfaceElevated,
   },
 
-  batteryHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  batteryValueRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
   },
 
   batteryValue: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: Colors.primary,
+    fontSize: 32,
+    fontWeight: "800",
+    color: Colors.textPrimary,
+  },
+
+  batteryDescription: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+  },
+
+  batteryBadge: {
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: Colors.surface,
+  },
+
+  batteryBadgeText: {
+    fontSize: 11,
+    fontWeight: "800",
   },
 
   slider: {
-    width: '100%',
+    width: "100%",
     height: 40,
+    marginTop: 4,
+  },
+
+  sliderLabels: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+
+  sliderLabel: {
+    fontSize: 10,
+    color: Colors.textSecondary,
   },
 
   connectorContainer: {
-    flexDirection: 'row',
     gap: 8,
   },
 
   connectorButton: {
-    flex: 1,
-    padding: 14,
+    minHeight: 58,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.surfaceElevated,
-    borderRadius: 12,
-    backgroundColor: Colors.surface,
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
 
   selectedConnector: {
@@ -338,8 +636,23 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary,
   },
 
+  connectorIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.background,
+  },
+
+  selectedConnectorIcon: {
+    backgroundColor: "rgba(0,0,0,0.08)",
+  },
+
   connectorText: {
-    fontWeight: '700',
+    marginLeft: 11,
+    fontSize: 14,
+    fontWeight: "700",
     color: Colors.textSecondary,
   },
 
@@ -347,27 +660,58 @@ const styles = StyleSheet.create({
     color: Colors.background,
   },
 
+  checkIcon: {
+    marginLeft: "auto",
+  },
+
+  errorContainer: {
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.error,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+
   errorText: {
-    marginTop: 16,
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 17,
     color: Colors.error,
-    fontSize: 14,
   },
 
   searchButton: {
-    marginTop: 32,
-    padding: 17,
-    borderRadius: 14,
+    height: 54,
+    marginTop: "auto",
+    marginBottom: 20,
+    paddingHorizontal: 18,
+    borderRadius: 15,
     backgroundColor: Colors.primary,
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   disabledButton: {
-    opacity: 0.5,
+    opacity: 0.45,
   },
 
   searchButtonText: {
+    fontSize: 14,
+    fontWeight: "900",
+    letterSpacing: 0.4,
     color: Colors.background,
-    fontSize: 15,
-    fontWeight: '800',
+  },
+
+  searchButtonIcon: {
+    width: 30,
+    height: 30,
+    marginLeft: 10,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.08)",
   },
 });

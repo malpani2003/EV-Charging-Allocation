@@ -8,12 +8,15 @@ import {
   View,
 } from "react-native";
 import { router, useFocusEffect } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { getUserVehicles } from "@/services/api";
 import { Colors } from "@/constants/colors";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 
 export default function VehiclesScreen() {
+  const insets = useSafeAreaInsets();
+
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -50,7 +53,7 @@ export default function VehiclesScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top + 24 }]}>
       <Text style={styles.title}>My Vehicles</Text>
 
       <Text style={styles.subtitle}>Manage your electric vehicles</Text>
